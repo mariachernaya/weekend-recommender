@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Мероприятия на выходные</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="container">
+    <header class="hero">
+        <h1>Планировщик выходных</h1>
+        <p>Найдите идеальное мероприятие по вашим параметрам</p>
+    </header>
+    <div class="cards">
+        <a class="card" href="{{ url_for('events') }}">
+            <div class="icon">📅</div>
+            <h3>Все мероприятия</h3>
+            <p>Полный список с фильтрами по формату и локации</p>
+        </a>
+        <a class="card accent" href="{{ url_for('recommendations') }}">
+            <div class="icon">✨</div>
+            <h3>Умный подбор</h3>
+            <p>Укажите бюджет, сезон и компанию — система подберет лучшее</p>
+        </a>
+    </div>
+</div>
+</body>
+</html>

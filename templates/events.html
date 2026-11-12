@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Все мероприятия</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        .select2-container--default .select2-selection--multiple { background-color: #0f172a; border: 1px solid #475569; border-radius: 8px; min-height: 42px; color: #f8fafc; padding: 4px; }
+        .select2-container--default.select2-container--focus .select2-selection--multiple { border-color: #8b5cf6; }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice { background-color: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 6px; font-size: 13px; }
+        .select2-dropdown { background-color: #1e293b; border: 1px solid #475569; color: #f8fafc; }
+        .select2-container--default .select2-results__option--highlighted[aria-selected] { background-color: #8b5cf6; }
+
+        .filter-row { display: flex; gap: 16px; flex-wrap: wrap; width: 100%; margin-bottom: 12px;}
+        .filter-col { flex: 1 1 200px; }
+        .filter-col label { display: block; margin-bottom: 6px; color: #cbd5e1; font-size: 13px; font-weight: 600;}
+
+        .add-form-container { display: none; background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #8b5cf6; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2); }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-grid .full-width { grid-column: 1 / -1; }
+        .add-form-container input, .add-form-container select, .add-form-container textarea { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: white; }
+        .add-form-container textarea { resize: vertical; height: 80px; }
+        .add-form-container label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #cbd5e1; }
+
+        /* Стили для модального окна пароля */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: #1e293b; padding: 30px; border-radius: 12px; border: 1px solid #475569; width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .modal-content h2 { margin-top: 0; color: #f8fafc; }
+        .modal-content input { width: 100%; padding: 12px; margin: 16px 0; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: white; font-size: 16px; }
+        .modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; }
+        .modal-actions button { flex: 1; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; }
+        .btn-admin { background: #8b5cf6; color: white; }
+        .btn-admin:hover { background: #7c3aed; }
+
+        .admin-badge { background: #10b981; color: white; padding: 10px 24px; border-radius: 8px; font-size: 13px; font-weight: bold; display: inline-flex; align-items: center;  justify-content: center;  height: 44px;  box-sizing: border-box;}
+    </style>
+</head>
+<body>
+<div class="container">
+       <!-- ШАПКА -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+        <div>
+            <a class="back" href="{{ url_for('index') }}">← На главную</a>
+            <h1 style="margin: 0;">Все мероприятия</h1>
+        </div>
+
+        {% if is_admin %}
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <span class="admin-badge">Режим редактора</span>
+                <a href="{{ url_for('admin_logout') }}" class="btn-secondary" style="padding: 10px 20px; height: 44px; display: inline-flex; align-items: center; text-decoration: none; border-radius: 8px; box-sizing: border-box;">Выйти в режим пользователя</a>
+                <button id="toggle-add-btn" class="btn-primary" style="padding: 10px 24px; height: 44px; box-sizing: border-box;">+ Добавить мероприятие</button>
+            </div>
+        {% else %}
+            <button class="btn-primary require-admin" style="padding: 12px 24px; height: 44px; box-sizing: border-box;">+ Добавить мероприятие</button>
+        {% endif %}
+    </div>
+
+    {% if is_admin %}
+    <div id="add-form" class="add-form-container">
+        <h2 id="form-title" style="margin-top: 0; color: #c4b5fd;">Новое мероприятие</h2>
+        <form id="event-form" action="{{ url_for('add_event') }}" method="POST">
+            <div class="form-grid">
+                <div class="full-width">
+                    <label>Название *</label>
+                    <input type="text" name="name" id="inp-name" required>
+                </div>
+                <div class="full-width">
+                    <label>Описание</label>
+                    <textarea name="desc" id="inp-desc"></textarea>
+                </div>
+                <div>
+                    <label>Стоимость (руб.)</label>
+                    <input type="number" name="cost" id="inp-cost" value="0" min="0" step="0.1">
+                </div>
+                <div>
+                    <label>Сезон (можно несколько)</label>
+                    <select name="season" id="inp-season" multiple class="multi-select">
+                        <option value="Всесезон">Всесезон</option>
+                        <option value="Лето">Лето</option>
+                        <option value="Зима">Зима</option>
+                        <option value="Весна">Весна</option>
+                        <option value="Осень">Осень</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Для кого (можно несколько)</label>
+                    <select name="company" id="inp-company" multiple class="multi-select">
+                        <option value="Один">Один</option>
+                        <option value="Пара">Пара</option>
+                        <option value="Друзья">Друзья</option>
+                        <option value="Семья">Семья</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Скидка (можно несколько)</label>
+                    <select name="discount" id="inp-discount" multiple class="multi-select">
+                        {% for d in discounts %}
+                            <option value="{{ d }}" {% if d == 'Нет_скидки' %}selected{% endif %}>{{ d }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label>Форматы</label>
+                    <select name="formats" id="inp-formats" multiple class="multi-select tags-allowed" required>
+                        {% for f in formats %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label>Локации</label>
+                    <select name="locations" id="inp-locations" multiple class="multi-select tags-allowed" required>
+                        {% for l in locations %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="full-width" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="animals" id="inp-animals" style="width: 18px; height: 18px;">
+                    <label for="inp-animals" style="margin: 0;">Можно с животными</label>
+                </div>
+            </div>
+            <div style="margin-top: 20px; display: flex; gap: 12px;">
+                <button type="submit" class="btn-primary">Сохранить</button>
+                <button type="button" id="cancel-add-btn" class="btn-secondary">Отмена</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- ФИЛЬТРЫ -->
+    <div class="filters">
+        <div class="filter-row">
+            <div class="filter-col" style="flex: 1 1 100%;">
+                <input type="text" id="search" placeholder="Поиск по названию или описанию...">
+            </div>
+        </div>
+        <div class="filter-row">
+            <div class="filter-col">
+                <label>Форматы:</label>
+                <select id="f-fmt" multiple style="width: 100%;">
+                    {% for f in formats %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="filter-col">
+                <label>Локации:</label>
+                <select id="f-loc" multiple style="width: 100%;">
+                    {% for l in locations %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="filter-col" style="display: flex; align-items: flex-end;">
+                <button id="reset" class="btn-secondary" style="width: 100%; height: 42px;">Сбросить</button>
+            </div>
+        </div>
+    </div>
+
+    <p class="counter">Найдено: <span id="count">{{ events|length }}</span> из {{ events|length }}</p>
+
+    <table id="events-table">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Формат</th>
+                <th>Локация</th>
+                <th>Сезон / Для кого</th>
+                <th>Стоимость</th>
+                {% if is_admin %}<th>Действия</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+        {% for e in events %}
+            <tr data-id="{{ e.id }}" data-fmts="{{ e.fmt }}" data-locs="{{ e.loc }}" data-search="{{ (e.name ~ ' ' ~ e.desc)|lower }}">
+                <td><strong>{{ e.name }}</strong>{% if e.desc %}<br><span class="muted">{{ e.desc }}</span>{% endif %}</td>
+                <td>{{ e.fmt }}</td>
+                <td>{{ e.loc }}</td>
+                <td>{{ e.season }} <br> <span class="muted">{{ e.company }}</span></td>
+                <td>{{ e.cost }} ₽</td>
+                {% if is_admin %}
+                <td>
+                    <button class="btn-secondary btn-sm edit-btn" data-id="{{ e.id }}">✏️</button>
+                    <form action="{{ url_for('delete_event', event_id=e.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Удалить это мероприятие?');">
+                        <button type="submit" class="btn-secondary btn-sm" style="color: #f87171;">🗑️</button>
+                    </form>
+                </td>
+                {% endif %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО ДЛЯ ВВОДА ПАРОЛЯ (Для не-админов) -->
+{% if not is_admin %}
+<div id="login-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h2>Доступ ограничен</h2>
+        <p class="muted">Изменение базы данных доступно только редакторам.</p>
+        <form id="login-form">
+            <input type="password" id="admin-password" placeholder="Введите пароль" required>
+            <div id="login-error" style="color: #f87171; font-size: 13px; margin-bottom: 10px; display: none;">Неверный пароль</div>
+            <div class="modal-actions">
+                <button type="button" id="close-modal" class="btn-secondary">Продолжить просмотр</button>
+                <button type="submit" class="btn-admin">Войти</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Инициализация Select2
+    $('#f-fmt, #f-loc, #inp-season, #inp-company, #inp-discount').select2({ placeholder: "Выберите...", allowClear: true, closeOnSelect: false });
+    $('#inp-formats, #inp-locations').select2({ placeholder: "Выберите или введите...", tags: true, closeOnSelect: false });
+
+    // --- ЛОГИКА ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ ---
+    {% if not is_admin %}
+    $('.require-admin').click(function(e) {
+        e.preventDefault();
+        $('#login-modal').css('display', 'flex'); // Показываем модалку
+    });
+
+    $('#close-modal').click(function() {
+        $('#login-modal').hide(); // Продолжить просмотр
+    });
+
+    $('#login-form').submit(function(e) {
+        e.preventDefault();
+        const pwd = $('#admin-password').val();
+
+        $.ajax({
+            url: '/admin_login',
+            method: 'POST',
+            data: { password: pwd },
+            success: function(res) {
+                if(res.status === 'ok') window.location.reload();
+            },
+            error: function() {
+                $('#login-error').show();
+                $('#admin-password').val('');
+            }
+        });
+    });
+    {% endif %}
+
+    // --- ЛОГИКА ДЛЯ АДМИНОВ ---
+    {% if is_admin %}
+    // Показ/скрытие формы добавления
+    $('#toggle-add-btn').click(function() {
+        $('#event-form').attr('action', "{{ url_for('add_event') }}");
+        $('#form-title').text('Новое мероприятие');
+        $('#event-form')[0].reset(); // Сброс всей формы
+
+        // Очищаем ВСЕ списки, КРОМЕ скидки
+        $('#inp-season, #inp-company, #inp-formats, #inp-locations').val(null).trigger('change');
+
+        // Принудительно ставим "Нет_скидки" по умолчанию
+        $('#inp-discount').val(['Нет_скидки']).trigger('change');
+
+        $('#add-form').slideDown();
+    });
+    $('#cancel-add-btn').click(function() { $('#add-form').slideUp(); });
+
+    // Обработка кнопки РЕДАКТИРОВАТЬ
+    $('.edit-btn').click(function() {
+        const row = $(this).closest('tr');
+        const id = row.data('id');
+
+        // Меняем заголовок и URL формы
+        $('#form-title').text('Редактировать: ' + row.find('td:first strong').text());
+        $('#event-form').attr('action', '/edit_event/' + id);
+
+        // Заполняем поля
+        $('#inp-name').val(row.find('td:first strong').text());
+        $('#inp-desc').val(row.find('td:first .muted').text());
+        $('#inp-cost').val(row.find('td:nth-child(5)').text().replace(' ₽', ''));
+
+        // Заполняем выпадающие списки (разбиваем строки обратно в массивы)
+        const seasons = row.find('td:nth-child(4)').text().split('\n')[0].split(', ');
+        const companies = row.find('td:nth-child(4) .muted').text().split(', ');
+        const fmts = row.data('fmts').split(', ');
+        const locs = row.data('locs').split(', ');
+
+        $('#inp-season').val(seasons).trigger('change');
+        $('#inp-company').val(companies).trigger('change');
+        $('#inp-formats').val(fmts).trigger('change');
+        $('#inp-locations').val(locs).trigger('change');
+
+        // Скролл к форме
+        $('html, body').animate({ scrollTop: $('#add-form').offset().top - 20 }, 300);
+        $('#add-form').slideDown();
+    });
+    {% endif %}
+
+    // --- ЛОГИКА ФИЛЬТРАЦИИ ---
+    const search = document.getElementById('search');
+    const rows = Array.from(document.querySelectorAll('#events-table tbody tr'));
+    const countEl = document.getElementById('count');
+
+    function applyFilters() {
+        const q = search.value.trim().toLowerCase();
+        const selectedFmts = $('#f-fmt').val() || [];
+        const selectedLocs = $('#f-loc').val() || [];
+
+        let visible = 0;
+        rows.forEach(r => {
+            const rowFmts = r.dataset.fmts.split(', ');
+            const rowLocs = r.dataset.locs.split(', ');
+
+            const fmtMatch = selectedFmts.length === 0 || selectedFmts.some(f => rowFmts.includes(f));
+            const locMatch = selectedLocs.length === 0 || selectedLocs.some(l => rowLocs.includes(l));
+            const searchMatch = !q || r.dataset.search.includes(q);
+
+            const ok = fmtMatch && locMatch && searchMatch;
+            r.style.display = ok ? '' : 'none';
+            if (ok) visible++;
+        });
+        countEl.textContent = visible;
+    }
+
+    search.addEventListener('input', applyFilters);
+    $('#f-fmt, #f-loc').on('change', applyFilters);
+
+    $('#reset').on('click', function() {
+        search.value = '';
+        $('#f-fmt').val(null).trigger('change');
+        $('#f-loc').val(null).trigger('change');
+    });
+});
+</script>
+</body>
+</html>

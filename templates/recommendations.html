@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Подбор мероприятия</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        .select2-container--default .select2-selection--multiple { background-color: #0f172a; border: 1px solid #475569; border-radius: 8px; min-height: 42px; color: #f8fafc; padding: 4px; }
+        .select2-container--default.select2-container--focus .select2-selection--multiple { border-color: #8b5cf6; }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice { background-color: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 6px; font-size: 13px; }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove { color: white; margin-right: 6px; }
+        .select2-dropdown { background-color: #1e293b; border: 1px solid #475569; color: #f8fafc; }
+        .select2-container--default .select2-results__option--selected { background-color: #334155; }
+        .select2-container--default .select2-results__option--highlighted[aria-selected] { background-color: #8b5cf6; }
+        .select2-container *:focus { outline: none; }
+
+        .rec-form .field { margin-bottom: 0; }
+
+        /* Стили для панели сортировки */
+        .sort-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 16px 0;
+            background: #1e293b;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+        .sort-panel label { font-weight: 600; color: #cbd5e1; margin-right: 12px; }
+        .sort-panel select { padding: 8px 12px; background: #0f172a; border: 1px solid #475569; border-radius: 6px; color: #f8fafc; font-size: 14px; cursor: pointer; }
+        .sort-panel select:focus { outline: none; border-color: #8b5cf6; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <a class="back" href="{{ url_for('index') }}">← На главную</a>
+    <h1>Подбор мероприятия</h1>
+    <p class="muted">Заполните только те поля, которые вам важны. Остальные оставьте пустыми (Не важно).</p>
+
+    <form method="post" class="rec-form">
+        <div class="field">
+            <label>Сезон:</label>
+            <select name="season" multiple style="width: 100%;">
+                <option value="Зима">Зима</option>
+                <option value="Весна">Весна</option>
+                <option value="Лето">Лето</option>
+                <option value="Осень">Осень</option>
+                <option value="Всесезон">Всесезон</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>С кем пойдете?:</label>
+            <select name="company" multiple style="width: 100%;">
+                <option value="Один">Один</option>
+                <option value="Пара">Пара</option>
+                <option value="Друзья">Друзья</option>
+                <option value="Семья">Семья</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>Максимальный бюджет (руб.):</label>
+            <input type="number" name="max_price" value="0" placeholder="Например, 2000" min="0" style="width: 100%;">
+        </div>
+        <div class="field">
+            <label>Формат:</label>
+            <select name="format" multiple style="width: 100%;">
+                {% for f in formats %}
+                    <option value="{{ f }}">{{ f }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field">
+            <label>Локация:</label>
+            <select name="location" multiple style="width: 100%;">
+                {% for l in locations %}
+                    <option value="{{ l }}">{{ l }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field" style="flex-direction: row; align-items: center; gap: 8px; margin-top: 10px;">
+            <input type="checkbox" name="with_animals" id="animals">
+            <label for="animals" style="margin: 0;">Можно с животными</label>
+        </div>
+
+        <button type="submit" class="btn-primary" style="flex: 1 1 100%;">Найти мероприятия</button>
+    </form>
+
+    {% if recs is not none %}
+        <hr class="divider">
+
+        <div class="applied-filters" style="background: rgba(139, 92, 246, 0.1); border: 1px solid #8b5cf6; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;">
+            <strong style="color: #c4b5fd;">Ваши критерии:</strong> {{ filter_string }}
+        </div>
+
+        {% if recs %}
+            <div class="sort-panel">
+                <div>
+                    <h2 style="margin: 0;">Найденные мероприятия</h2>
+                    <span class="muted">Система отсортировала их по степени совпадения с вашими пожеланиями.</span>
+                </div>
+                <div>
+                    <label for="sort-select">Сортировка:</label>
+                    <select id="sort-select">
+                        <option value="score">По релевантности (по умолчанию)</option>
+                        <option value="price-asc">Цена: по возрастанию (мин → макс)</option>
+                        <option value="price-desc">Цена: по убыванию (макс → мин)</option>
+                    </select>
+                </div>
+            </div>
+
+            <table id="results-table">
+                <thead>
+                    <tr>
+                        <th>Название / Совпадения</th>
+                        <th>Формат / Локация</th>
+                        <th>Сезон / Для кого</th>
+                        <th>Цена</th>
+                        <th>Скидка</th>
+                        <th>Итоговая цена</th>
+                    </tr>
+                </thead>
+                <tbody id="results-tbody">
+                {% for r in recs %}
+                    <tr data-price="{{ r.final_price }}" data-score="{{ r.score }}">
+                        <td>
+                            <strong>{{ r.name }}</strong>{% if r.desc %}<br>
+                            <span class="muted">{{ r.desc }}</span>{% endif %}
+                            {% if r.matches %}
+                                <br><span class="badge badge-eff" style="margin-top: 4px; font-size: 10px;">Совпало: {{ r.matches }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ r.fmt }} <br> <span class="muted">{{ r.loc }}</span></td>
+                        <td>{{ r.season }} <br> <span class="muted">{{ r.company }}</span></td>
+                        <td>{{ r.cost }} ₽</td>
+                        <td>
+                            {% if r.discount > 0 %}
+                                <span class="badge badge-bez">{{ r.discount }}%</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong>{{ r.final_price }} ₽</strong>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="empty">По вашим критериям ничего не найдено. Попробуйте ослабить фильтры.</p>
+        {% endif %}
+    {% endif %}
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Инициализация Select2
+    $('select[multiple]').select2({ placeholder: "— Не важно —", allowClear: true, closeOnSelect: false });
+
+    // Логика сортировки
+    const sortSelect = document.getElementById('sort-select');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+            const sortBy = this.value;
+            const tbody = document.getElementById('results-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            rows.sort((a, b) => {
+                const priceA = parseFloat(a.dataset.price);
+                const priceB = parseFloat(b.dataset.price);
+                const scoreA = parseFloat(a.dataset.score);
+                const scoreB = parseFloat(b.dataset.score);
+
+                if (sortBy === 'price-asc') return priceA - priceB;
+                if (sortBy === 'price-desc') return priceB - priceA;
+                return scoreB - scoreA;
+            });
+
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+        });
+    }
+});
+</script>
+</body>
+</html>
